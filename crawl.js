@@ -51,8 +51,26 @@ function normalizeURL(urlString)
 }
 
 
-async function crawlPage(currentURL)
+async function crawlPage(baseURL, currentURL, pages)
 {
+    const baseURLObj = new URL(baseURL);
+    const currURLObj = new URL(currentURL);
+
+    if (baseURLObj.hostname !== currURLObj.hostname)
+    {
+        return pages;
+    }
+
+
+    const normalizedCurrURL = normalizeURL(currentURL);
+    if (pages[normalizedCurrURL] > 0)
+    {
+        pages[normalizedCurrURL]++;
+        return pages;
+    }
+
+    pages[normalizedCurrURL] = 1;
+
     console.log(`acively crawling ${currentURL}`);
 
     try
@@ -62,7 +80,7 @@ async function crawlPage(currentURL)
         if (resp.status > 399)
         {
             console.log(`error in fetch with status code ${resp.status} on page: ${currentURL}`);
-            return;
+            return pages;
         }
 
         const contentType = resp.headers.get('content-type');
@@ -70,15 +88,24 @@ async function crawlPage(currentURL)
         if (!contentType.includes('text/html'))
         {
             console.log(`non html response, content type: ${contentType} on page: ${currentURL}`);
-            return;
+            return pages;
         }
-        console.log(await resp.text());
+
+        const htmlBody = await resp.text();
+
+        const nextURLs = getURLsFromHTML(htmlBody, baseURL);
+
+        for (const nextURL of nextURLs)
+        {
+            pages = await crawlPage(baseURL, nextURL, pages);
+        }
     }
     catch (err)
     {
         console.log(`error in fetch: ${err.message}, on page: ${currentURL}`)
     }
 
+    return pages;
 }
 
 
